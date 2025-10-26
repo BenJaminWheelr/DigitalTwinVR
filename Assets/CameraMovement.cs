@@ -17,7 +17,7 @@ public class CameraMovement : MonoBehaviour
 
     void Update()
     {
-        // Rotation
+        // Rotationwwwww
         yaw += Input.GetAxis("Mouse X") * rotSens;
         pitch -= Input.GetAxis("Mouse Y") * rotSens;
         transform.eulerAngles = new Vector3(pitch, yaw, 0.0f);
