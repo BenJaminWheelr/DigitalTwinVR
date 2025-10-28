@@ -1,39 +1,46 @@
 using UnityEngine;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine.XR;
+using Unity.XR.CoreUtils;
+using UnityEditor.ShaderGraph.Internal;
+using UnityEngine.XR.Interaction.Toolkit.AR.Inputs;
 
 public class CameraMovement : MonoBehaviour
 {
-    public float speed = 5.0f;
-    public float rotSens = 3.0f;
+    public XRNode inputSource;
+    public XRNode rotationSource;
+    private Vector2 inputAxis;
+    private Vector2 rotateAxis;
+    private CharacterController character;
+    public float speed = 10;
+    private XROrigin rig;
+    public float fallingSpeed = -9.81f;
+    public float turnSpeed = 60f;
 
-    private float yaw = 0.0f;
-    private float pitch = 0.0f;
-    private CharacterController controller;
-
-    void Start()
+    private void Start()
     {
-        controller = GetComponent<CharacterController>();
-        Cursor.lockState = CursorLockMode.Locked;
+        character = GetComponent<CharacterController>();
+        rig = GetComponent<XROrigin>();
     }
 
-    void Update()
+    private void Update()
     {
-        // Rotationwwwww
-        yaw += Input.GetAxis("Mouse X") * rotSens;
-        pitch -= Input.GetAxis("Mouse Y") * rotSens;
-        transform.eulerAngles = new Vector3(pitch, yaw, 0.0f);
+        InputDevice device = InputDevices.GetDeviceAtXRNode(inputSource);
+        device.TryGetFeatureValue(CommonUsages.primary2DAxis, out inputAxis);
 
-        // Movement input
-        float moveX = Input.GetAxis("Horizontal");
-        float moveZ = Input.GetAxis("Vertical");
-        Vector3 move = transform.right * moveX + transform.forward * moveZ;
+        InputDevice rotationDevice = InputDevices.GetDeviceAtXRNode(rotationSource);
+        rotationDevice.TryGetFeatureValue(CommonUsages.primary2DAxis, out rotateAxis);
+    }
 
-        // Vertical (jump/fly) movement
-        if (Input.GetKey(KeyCode.Space))
-            move.y += 1;
-        if (Input.GetKey(KeyCode.LeftControl))
-            move.y -= 1;
+    private void FixedUpdate()
+    {
+        float yaw = rotateAxis.x * turnSpeed * Time.fixedDeltaTime;
+        transform.Rotate(0, yaw, 0);
 
-        // Apply movement with collision
-        controller.Move(move * speed * Time.deltaTime);
+        Quaternion headYaw = Quaternion.Euler(0, rig.Camera.transform.eulerAngles.y, 0);
+        Vector3 direction = headYaw * new Vector3(inputAxis.x, 0, inputAxis.y);
+        character.Move(direction * Time.fixedDeltaTime * speed);
+        character.Move(Vector3.up * fallingSpeed * Time.fixedDeltaTime);
     }
 }
