@@ -27,10 +27,7 @@ public class HybridCameraMovement : MonoBehaviour
     private CharacterController character;
     private XROrigin rig;
     private float verticalVelocity = 0f;
-    private float rotationY = 0f;
 
-    private Vector2 desktopInput;
-    private Vector2 desktopMouse;
     private Vector2 xrInput;
     private Vector2 xrRotate;
     private bool primaryButton;
@@ -57,12 +54,6 @@ public class HybridCameraMovement : MonoBehaviour
 
     private void Update()
     {
-        // --- Desktop input (only if UI closed) ---
-        if (!isUiOpen)
-        {
-            desktopInput = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-            desktopMouse = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
-        }
 
         // --- XR input ---
         InputDevice device = InputDevices.GetDeviceAtXRNode(inputSource);
@@ -71,6 +62,8 @@ public class HybridCameraMovement : MonoBehaviour
 
         InputDevice rotationDevice = InputDevices.GetDeviceAtXRNode(rotationSource);
         rotationDevice.TryGetFeatureValue(CommonUsages.primary2DAxis, out xrRotate);
+        float yawAmount = xrRotate.x * xrTurnSpeed * Time.deltaTime;
+        transform.Rotate(0f, yawAmount, 0f);
 
         // --- UI toggle ---
         bool primaryDown = primaryButton && !prevPrimaryButton;
@@ -83,20 +76,9 @@ public class HybridCameraMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // --- Rotation ---
-        float yaw = desktopMouse.x * mouseTurnSpeed * Time.fixedDeltaTime;
-        yaw += xrRotate.x * xrTurnSpeed * Time.fixedDeltaTime;
-        transform.Rotate(0f, yaw, 0f);
-
-        rotationY -= desktopMouse.y * mouseTurnSpeed * Time.fixedDeltaTime;
-        rotationY = Mathf.Clamp(rotationY, -90f, 90f);
-        Camera.main.transform.localEulerAngles = new Vector3(rotationY, 0f, 0f);
-
         // --- Movement ---
         Vector3 moveDirection = Vector3.zero;
 
-        // Desktop movement
-        moveDirection += transform.right * desktopInput.x + transform.forward * desktopInput.y;
 
         // XR movement
         Quaternion headYaw = Quaternion.Euler(0f, rig.Camera.transform.eulerAngles.y, 0f);
