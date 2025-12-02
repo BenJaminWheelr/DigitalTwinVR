@@ -13,6 +13,7 @@ public class DoorBehavior : MonoBehaviour
     private Quaternion closedRotation;
     private Quaternion openRotation;
     private bool isOpen = false;
+    private bool isOnFire = false;
 
     void Start()
     {
@@ -24,10 +25,14 @@ public class DoorBehavior : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag(playerTag))
+        if (!isOnFire)
         {
-            isOpen = true;
+            if (other.CompareTag(playerTag))
+            {
+                isOpen = true;
+            }
         }
+
     }
 
     void OnTriggerExit(Collider other)
@@ -36,6 +41,16 @@ public class DoorBehavior : MonoBehaviour
         {
             isOpen = false;
         }
+    }
+
+    public bool getFireStatus()
+    {
+        return isOnFire;
+    }
+
+    public void setFireStatus(bool fireStatus)
+    {
+        isOnFire = fireStatus;
     }
 
     void Update()

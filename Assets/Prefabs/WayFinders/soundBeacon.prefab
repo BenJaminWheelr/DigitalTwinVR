@@ -52,7 +52,7 @@ AudioSource:
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
-  Priority: 128
+  Priority: 0
   DopplerLevel: 1
   MinDistance: 1
   MaxDistance: 500
@@ -142,3 +142,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bde668ad70d86a14dad549173be5d75d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  visualPrefab: {fileID: 0}
