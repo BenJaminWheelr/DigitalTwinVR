@@ -99,6 +99,11 @@ public class FireAlarmManager : MonoBehaviour
         }
     }
 
+    public float GetTime()
+    {
+        return timer;
+    }
+
     private IEnumerator FogRoutine(bool increasing)
     {
         float target = increasing ? maxFogDensity : 0f;

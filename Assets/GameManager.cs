@@ -3,15 +3,15 @@ using System.Collections;
 
 public class GameManager : MonoBehaviour
 {
-    public SpawnManager spawnManager;
+    public SpawnManage spawnManager;
     public FireAlarmManager fireSystem;
     public FireCellManager fireCellManager;
     public float delay = 5f;
     private int spawnIndex;
     public void StartScenario()
     {
-        spawnIndex = Random.Range(0, spawnManager.spawnPoints.Length);
-        spawnManager.TeleportToSpawn(spawnIndex);
+        spawnIndex = Random.Range(0, spawnManager.spawnPoints.Count);
+        spawnManager.teleportPlayer(spawnIndex);
         StartCoroutine(DelayedFire());
     }
 
