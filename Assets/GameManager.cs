@@ -26,9 +26,8 @@ public class GameManager : MonoBehaviour
 
     public void CompleteScenario()
     {
-        if (!scenarioStarted) { return; }
+        //if (!scenarioStarted) { return; }
         fireSystem.ToggleAlarms(); // Turns off the firealarms and stops timer
-        fireCellManager.StartFire();
         float evacTime = fireSystem.GetTime();
         SaveTime(evacTime);
     }
