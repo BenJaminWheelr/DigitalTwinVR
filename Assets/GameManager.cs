@@ -8,10 +8,12 @@ public class GameManager : MonoBehaviour
     public FireCellManager fireCellManager;
     public float delay = 5f;
     private int spawnIndex;
+    private bool scenarioStarted;
     public void StartScenario()
     {
         spawnIndex = Random.Range(0, spawnManager.spawnPoints.Count);
         spawnManager.teleportPlayer(spawnIndex);
+        scenarioStarted = true;
         StartCoroutine(DelayedFire());
     }
 
@@ -24,6 +26,7 @@ public class GameManager : MonoBehaviour
 
     public void CompleteScenario()
     {
+        if (!scenarioStarted) { return; }
         fireSystem.ToggleAlarms(); // Turns off the firealarms and stops timer
         fireCellManager.StartFire();
         float evacTime = fireSystem.GetTime();
