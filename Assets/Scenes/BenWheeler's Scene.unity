@@ -68951,8 +68951,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   pathfinder: {fileID: 1721039859}
   playerHead: {fileID: 207265365}
-  deadzone: 30
-  wrongWayThreshold: 140
+  deadzone: 20
+  wrongWayThreshold: 100
   heartbeatIntensity: 0.8
   turnIntensity: 0.8
   wrongWayIntensity: 1
