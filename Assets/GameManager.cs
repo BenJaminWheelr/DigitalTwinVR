@@ -7,6 +7,8 @@ public class GameManager : MonoBehaviour
     public SpawnManage spawnManager;
     public FireAlarmManager fireSystem;
     public FireCellManager fireCellManager;
+    public PathfindingController controller;
+    public ExitSignManager exitSignManager;
     public float delay = 5f;
     private int spawnIndex;
     private bool scenarioStarted = false;
@@ -95,12 +97,36 @@ public class GameManager : MonoBehaviour
     void SaveTime(float time)
     {
         if (spawnIndex < 0) return;
+        (bool isPathfindingActive,
+         bool isSoundBeaconActive,
+         bool isHapticsActive) = controller.GetSystemState();
 
-        string key = $"Spawn_{spawnIndex}_Time";
-        PlayerPrefs.SetFloat(key, time);
+        // Build a CSV row
+        string row =
+            $"{spawnIndex}," +
+            $"{time}," +
+            $"{isPathfindingActive}," +
+            $"{isSoundBeaconActive}," +
+            $"{isHapticsActive}," +
+            $"{exitSignManager.GetExitSignState()}," +
+            $"{System.DateTime.Now}";
+
+        // Get existing table
+        string key = "EvacuationTable";
+        string table = PlayerPrefs.GetString(key, "");
+
+        // Append row (and newline if not empty)
+        if (string.IsNullOrEmpty(table))
+            table = "SpawnIndex,Time,Pathfinding,Sound,Haptics,Timestamp\n";
+
+        table += row + "\n";
+
+        // Save table back into PlayerPrefs
+        PlayerPrefs.SetString(key, table);
         PlayerPrefs.Save();
 
-        Debug.Log("Saved time for spawn " + spawnIndex + ": " + time);
+        Debug.Log("Saved row: " + row);
     }
+
 
 }

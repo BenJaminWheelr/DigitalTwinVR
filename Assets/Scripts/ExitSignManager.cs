@@ -12,7 +12,10 @@ public class ExitSignManager : MonoBehaviour
     public float highlightMultiplier = 0.8f; // darken by 20% when hovered
 
     public AudioSource clickAudioSource;
-
+    public bool GetExitSignState()
+    {
+        return exitSignParent.activeSelf;
+    }
     public void ToggleVisibility()
     {
         if (clickAudioSource != null) clickAudioSource.Play();

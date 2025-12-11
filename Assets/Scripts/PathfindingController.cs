@@ -58,6 +58,17 @@ public class PathfindingController : MonoBehaviour
     private bool shouldHapticsActivate = false;
     private Transform currentExit = null;
     private GameObject activeSoundBeacon = null;
+
+    public (bool pathfinding, bool soundBeacon, bool haptics) GetSystemState()
+    {
+        return (
+            shouldPathfindingActivate,
+            shouldSoundBeaconActivate,
+            shouldHapticsActivate
+        );
+    }
+
+
     public bool areHapticsEnabled()
     {
         return shouldHapticsActivate;
