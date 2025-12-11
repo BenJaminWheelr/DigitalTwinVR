@@ -13,13 +13,11 @@ public class FireAlarmFlasher : MonoBehaviour
 
     private bool active = false;
     private Coroutine routine;
-    private AudioSource alarmAudio;
 
     void Start()
     {
         // Ensure lights start completely off
         SetLights(0f);
-        alarmAudio = GetComponent<AudioSource>();
     }
 
     public void Activate()
@@ -38,8 +36,6 @@ public class FireAlarmFlasher : MonoBehaviour
     public void Deactivate()
     {
         active = false;
-        if (alarmAudio != null && alarmAudio.isPlaying)
-            alarmAudio.Stop();
         if (routine != null) StopCoroutine(routine);
         SetLights(0f);
     }
@@ -49,9 +45,6 @@ public class FireAlarmFlasher : MonoBehaviour
         // Wait for initial random offset
         if (initialDelay > 0f)
             yield return new WaitForSeconds(initialDelay);
-
-        if (alarmAudio != null && !alarmAudio.isPlaying)
-            alarmAudio.Play();
 
         while (active)
         {

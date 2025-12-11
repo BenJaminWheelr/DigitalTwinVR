@@ -6,9 +6,6 @@ using TMPro;
 
 public class FireCellManager : MonoBehaviour
 {
-    [Header("All floors with VisualizeCells scripts")]
-    public List<VisualizeCells> floors;
-
     [Header("Single doors to manage fire")]
     public List<DoorBehavior> singleDoors;
 
@@ -20,10 +17,23 @@ public class FireCellManager : MonoBehaviour
     [Range(0f, 1f)]
     public float fireChance = 0.25f; // 25% chance
 
-    public Button cellButton;
-    public Button startFireButton;
+    [Header("Fog Control")]
+    public float fogIncreasePerSecond = 0.01f;
+    public float maxFogDensity = 0.15f;
+    public Color fogColor = new Color(0.15f, 0.15f, 0.15f, 1f); // Dark gray default
+
+    private Coroutine fogRoutine;
+
+
     public TMP_Text fireStatusText;
     public TMP_Text fogStatusText;
+    public TMP_Text fogIncreaseText;
+    public TMP_Text fireSpreadText;
+    public TMP_Text fireChanceText;
+    public Slider fireSpreadSlider;
+    public Slider fireChanceSlider;
+    public Slider fogSlider;
+    public Slider fogIncreaseSlider;
 
     public Color greenColor = new Color(0f, 1f, 0f, 1f);
     public Color redColor = new Color(1f, 0f, 0f, 1f);
@@ -38,27 +48,62 @@ public class FireCellManager : MonoBehaviour
 
     public Transform player; // assign VR camera or player transform here
 
-    public void ToggleAllCells()
+    private IEnumerator IncreaseFogOverTime()
     {
-        if (clickAudioSource != null) clickAudioSource.Play();
-        isActive = !isActive;
+        while (true)
+        {
+            if (!isFireStarted)
+                yield break;
 
-        foreach (VisualizeCells floor in floors)
-            floor?.ToggleCellsVisibility();
+            RenderSettings.fog = true;
 
-        UpdateButtonColors(isActive, cellButton);
+            RenderSettings.fogDensity = Mathf.Min(
+                RenderSettings.fogDensity + fogIncreasePerSecond,
+                maxFogDensity
+            );
+
+            yield return new WaitForSeconds(1f);
+        }
+    }
+
+    public void SetMaxFogDensity(float value)
+    {
+        float rounded = Mathf.Round(value * 100f) / 100f;
+        maxFogDensity = rounded;
+    }
+
+    public void SetFireCheckInterval(float value)
+    {
+        fireCheckInterval = value;
+    }
+
+    public void SetFireChance(float value)
+    {
+        value = value / 100f;
+        fireChance = value;
+    }
+
+
+    public void SetFogIncreaseRate(float value)
+    {
+        float rounded = Mathf.Round(value * 100f) / 100f;
+        fogIncreasePerSecond = rounded;
     }
 
     public void StartFire()
     {
         if (isFireStarted) return;
-        if (clickAudioSource != null) clickAudioSource.Play();
 
+        RenderSettings.fogDensity = 0f;
         isFireStarted = true;
-        UpdateButtonColors(isFireStarted, startFireButton);
+        RenderSettings.fogColor = fogColor;
 
+
+        fogRoutine = StartCoroutine(IncreaseFogOverTime());
         fireRoutine = StartCoroutine(ManageDoorFires());
     }
+
+
 
     private IEnumerator ManageDoorFires()
     {
@@ -123,21 +168,6 @@ public class FireCellManager : MonoBehaviour
         }
     }
 
-    private void UpdateButtonColors(bool isActive, Button buttonToUpdate)
-    {
-        Color normal = isActive ? greenColor : redColor;
-        Color highlighted = normal * highlightMultiplier;
-        Color pressed = normal * 0.6f;
-
-        ColorBlock cb = buttonToUpdate.colors;
-        cb.normalColor = normal;
-        cb.highlightedColor = highlighted;
-        cb.pressedColor = pressed;
-        cb.selectedColor = normal;
-        cb.disabledColor = Color.gray;
-        cb.colorMultiplier = 1f;
-        buttonToUpdate.colors = cb;
-    }
 
     void Update()
     {
@@ -153,15 +183,44 @@ public class FireCellManager : MonoBehaviour
                 blockedDoors++;
         }
 
-        fireStatusText.text = $"Blocked Exits: {blockedDoors}/{singleDoors.Count + doubleDoorParents.Count}";
-        if (floors.Count > 0)
-            fogStatusText.text = floors[0].getFogStatus();
+        if (fireStatusText != null)
+            fireStatusText.text = $"Blocked Exits: {blockedDoors}/{singleDoors.Count + doubleDoorParents.Count}";
+
+        if (fogStatusText != null)
+            fogStatusText.text = $"Fog Density: {RenderSettings.fogDensity:F2} / {maxFogDensity:F2}";
+
+        if (fogIncreaseText != null)
+            fogIncreaseText.text = $"Increase Rate: {fogIncreasePerSecond:F2} /s";
+
+        if (fireSpreadText != null)
+            fireSpreadText.text = $"Fire Spread Rate: {fireCheckInterval:F2} /s";
+
+        if (fireChanceText != null)
+            fireChanceText.text = $"Fire Spread Chance: {fireChance * 100}%";
+
+    }
+
+    private void refreshUI()
+    {
+        fogSlider.value = maxFogDensity;        // sync UI to variable
+        SetMaxFogDensity(fogSlider.value);      // enforce rounding + refresh
+
+        fogIncreaseSlider.value = fogIncreasePerSecond;
+        SetFogIncreaseRate(fogIncreaseSlider.value);
+
+        fireSpreadSlider.value = fireCheckInterval;
+        SetFireCheckInterval(fireSpreadSlider.value);
+
+        fireChanceSlider.value = fireChance;
+        SetFireChance(fireChanceSlider.value);
     }
 
     private void Start()
     {
-        UpdateButtonColors(isActive, cellButton);
-        UpdateButtonColors(isFireStarted, startFireButton);
+        RenderSettings.fog = true;
+        RenderSettings.fogDensity = 0f;
+
+        refreshUI();
 
         // deactivate all single doors
         foreach (var door in singleDoors)
@@ -185,4 +244,59 @@ public class FireCellManager : MonoBehaviour
                 door.setFireStatus(false);
         }
     }
+
+    public void ResetEnvironment()
+    {
+        Debug.Log("RESET ENVIRONMENT");
+
+        // STOP FIRE
+        if (fireRoutine != null)
+        {
+            StopCoroutine(fireRoutine);
+            fireRoutine = null;
+        }
+
+        // STOP FOG
+        if (fogRoutine != null)
+        {
+            StopCoroutine(fogRoutine);
+            fogRoutine = null;
+        }
+
+        isFireStarted = false;
+
+        // UNBLOCK SINGLE
+        foreach (var door in singleDoors)
+        {
+            if (door == null) continue;
+
+            door.setFireStatus(false);
+
+            Transform fireChild = door.transform.Find("Fire");
+            if (fireChild != null)
+                fireChild.gameObject.SetActive(false);
+        }
+
+        // UNBLOCK DOUBLE
+        foreach (var parent in doubleDoorParents)
+        {
+            if (parent == null) continue;
+
+            DoorBehavior[] doors = parent.GetComponentsInChildren<DoorBehavior>();
+            foreach (var door in doors)
+                door.setFireStatus(false);
+
+            Transform fireChild = parent.transform.Find("Fire");
+            if (fireChild != null)
+                fireChild.gameObject.SetActive(false);
+        }
+
+        // CLEAR FOG
+        RenderSettings.fogDensity = 0f;
+        RenderSettings.fog = true;
+
+        Debug.Log("ENVIRONMENT RESET COMPLETE");
+    }
+
+
 }

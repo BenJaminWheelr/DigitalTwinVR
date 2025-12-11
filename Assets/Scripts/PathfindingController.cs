@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.UI;
 
 public class PathfindingController : MonoBehaviour
 {
@@ -33,14 +34,82 @@ public class PathfindingController : MonoBehaviour
     [Header("Path Tuning")]
     [SerializeField] private float calculationInterval = 0.5f;
     [SerializeField] private float waypointThreshold = 1.5f; 
-    [SerializeField] private float searchRange = 2.0f; 
+    [SerializeField] private float searchRange = 2.0f;
+
+    [Header("UI")]
+    public Button togglePathfindingButton;
+    public Button toggleSoundBeaconButton;
+    public Button toggleHapticsButton;
+    public Color greenColor = new Color(0f, 1f, 0f, 1f); // exit signs showing
+    public Color redColor = new Color(1f, 0f, 0f, 1f);   // no exit signs
+    [Range(0f, 1f)]
+    public float highlightMultiplier = 0.8f; // darken by 20% when hovered
+
+    public AudioSource clickAudioSource;
 
     // ========================================================================
     // STATE
     // ========================================================================
     private NavMeshPath _currentPath; 
     private int _currentCornerIndex = 0; 
-    private float _flashTimer; 
+    private float _flashTimer;
+    private bool shouldPathfindingActivate = false;
+    private bool shouldSoundBeaconActivate = false;
+    private bool shouldHapticsActivate = false;
+    private Transform currentExit = null;
+    private GameObject activeSoundBeacon = null;
+    public bool areHapticsEnabled()
+    {
+        return shouldHapticsActivate;
+    }
+    public void TogglePathfinding()
+    {
+        if (clickAudioSource != null) clickAudioSource.Play();
+
+        shouldPathfindingActivate = !shouldPathfindingActivate;
+
+        if (shouldPathfindingActivate)
+            _currentCornerIndex = 0;
+
+        UpdateButtonColors(togglePathfindingButton, shouldPathfindingActivate);
+    }
+
+    public void ToggleSound()
+    {
+        if (clickAudioSource != null) clickAudioSource.Play();
+
+        shouldSoundBeaconActivate = !shouldSoundBeaconActivate;
+        UpdateButtonColors(toggleSoundBeaconButton, shouldSoundBeaconActivate);
+
+        if (!shouldSoundBeaconActivate)
+            DisableCurrentBeacon();   // <-- REQUIRED
+    }
+
+
+    public void ToggleHaptics()
+    {
+        if (clickAudioSource != null) clickAudioSource.Play();
+
+        shouldHapticsActivate = !shouldHapticsActivate;
+        UpdateButtonColors(toggleHapticsButton, shouldHapticsActivate);
+    }
+
+
+    private void UpdateButtonColors(Button buttonToUpdate, bool shouldActivate)
+    {
+        Color normal = shouldActivate ? greenColor : redColor;
+        Color highlighted = normal * highlightMultiplier; // makes it darker
+        Color pressed = normal * 0.6f; // optional: even darker when pressed
+
+        ColorBlock cb = buttonToUpdate.colors;
+        cb.normalColor = normal;
+        cb.highlightedColor = highlighted;
+        cb.pressedColor = pressed;
+        cb.selectedColor = normal; // stays same as normal
+        cb.disabledColor = Color.gray;
+        cb.colorMultiplier = 1f; // ensures the color changes are applied
+        buttonToUpdate.colors = cb;
+    }
 
     // PUBLIC PROPERTY: THE "ALARM SPY" CHECK
     public bool IsActive
@@ -48,11 +117,11 @@ public class PathfindingController : MonoBehaviour
         get
         {
             // Safety check
-            if (alarmManager == null || alarmManager.fireAlarmButton == null) return false;
+            if (alarmManager == null || !alarmManager.isActive) return false;
 
             // SPY LOGIC: In FireAlarmManager, when active, the button turns Green.
             // We check if the current button color matches the manager's "Green" color.
-            return alarmManager.fireAlarmButton.colors.normalColor == alarmManager.greenColor;
+            return alarmManager.isActive;
         }
     }
 
@@ -76,6 +145,12 @@ public class PathfindingController : MonoBehaviour
         if (alarmManager == null) alarmManager = FindAnyObjectByType<FireAlarmManager>();
 
         StartCoroutine(UpdatePathRoutine());
+        UpdateButtonColors(togglePathfindingButton, shouldPathfindingActivate);
+        UpdateButtonColors(toggleSoundBeaconButton, shouldSoundBeaconActivate);
+        UpdateButtonColors(toggleHapticsButton, shouldHapticsActivate);
+
+        DisableAllBeacons();
+
     }
 
     // ========================================================================
@@ -84,7 +159,7 @@ public class PathfindingController : MonoBehaviour
     void Update()
     {
         // 1. SAFETY CHECK: If Alarm is OFF, Hide everything
-        if (!IsActive)
+        if (!IsActive || !shouldPathfindingActivate)
         {
             if (pathRenderer != null) pathRenderer.enabled = false;
             if (wrongWayIndicator != null) wrongWayIndicator.SetActive(false);
@@ -182,12 +257,84 @@ public class PathfindingController : MonoBehaviour
                     {
                         shortestLength = pathLength;
                         bestPath = testPath;
+                        currentExit = exit;
                     }
                 }
             }
         }
         _currentPath = bestPath;
+        UpdateSoundBeacon();
     }
+
+    private void UpdateSoundBeacon()
+    {
+        // Hard reset if disabled or invalid
+        if (!IsActive || !shouldSoundBeaconActivate || currentExit == null || _currentPath == null || _currentPath.corners.Length < 2)
+        {
+            DisableCurrentBeacon();
+            return;
+        }
+
+        Transform beaconTransform = currentExit.Find("SoundBeacon");
+
+        // No beacon on this exit
+        if (beaconTransform == null)
+        {
+            DisableCurrentBeacon();
+            return;
+        }
+
+        GameObject newBeacon = beaconTransform.gameObject;
+
+        // Turn off anything that's NOT the correct one
+        if (activeSoundBeacon != null && activeSoundBeacon != newBeacon)
+        {
+            DisableCurrentBeacon();
+        }
+
+        // Force-activate correct beacon every update
+        if (activeSoundBeacon != newBeacon)
+        {
+            activeSoundBeacon = newBeacon;
+            activeSoundBeacon.SetActive(true);
+
+            AudioSource src = activeSoundBeacon.GetComponent<AudioSource>();
+            if (src != null && !src.isPlaying)
+                src.Play();
+        }
+    }
+
+    private void DisableAllBeacons()
+    {
+        foreach (Transform exit in availableExits)
+        {
+            if (exit == null) continue;
+
+            Transform beacon = exit.Find("SoundBeacon");
+            if (beacon == null) continue;
+
+            AudioSource src = beacon.GetComponent<AudioSource>();
+            if (src != null)
+                src.Stop();
+
+            beacon.gameObject.SetActive(false);
+        }
+
+        activeSoundBeacon = null;
+    }
+
+
+
+    private void DisableCurrentBeacon()
+    {
+        if (activeSoundBeacon != null)
+        {
+            activeSoundBeacon.SetActive(false);
+            activeSoundBeacon = null;
+        }
+    }
+
+
 
     private bool IsExitSafe(Transform exitNode)
     {
@@ -231,6 +378,13 @@ public class PathfindingController : MonoBehaviour
 
     private void DrawPathGeometry()
     {
+
+        if (!shouldPathfindingActivate) 
+        {
+            if (pathRenderer != null) pathRenderer.enabled = false;
+            return;
+        }
+
         if (_currentPath != null && _currentPath.corners.Length > 1)
         {
             pathRenderer.enabled = true;

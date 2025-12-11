@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.XR; // Core Hardware Library
+using UnityEngine.XR;
 
 public class HapticSystem : MonoBehaviour
 {
@@ -8,105 +8,178 @@ public class HapticSystem : MonoBehaviour
     // ========================================================================
     [Header("References")]
     public PathfindingController pathfinder;
-    public Transform playerHead; // Drag 'Main Camera' here
+    public Transform playerHead;
 
     [Header("Tuning")]
-    [SerializeField] private float deadzone = 15.0f;       // Angle to consider "Forward"
-    [SerializeField] private float wrongWayThreshold = 90.0f; // Angle to consider "Wrong Way"
+    [SerializeField] private float deadzone = 15.0f;
+    [SerializeField] private float wrongWayThreshold = 90.0f;
 
     [Header("Haptic Intensities")]
-    [SerializeField] private float heartbeatIntensity = 0.5f; 
-    [SerializeField] private float turnIntensity = 0.8f;      
-    [SerializeField] private float wrongWayIntensity = 1.0f; 
-
-    // Timers to prevent motor locking (spamming the hardware)
-    private float _heartbeatTimer;
-    private float _heartbeatInterval = 1.0f; 
-    private float _continuousTimer;
-    private float _continuousInterval = 0.1f; 
+    [SerializeField] private float heartbeatIntensity = 0.5f;
+    [SerializeField] private float turnIntensity = 0.8f;
+    [SerializeField] private float wrongWayIntensity = 1.0f;
 
     // ========================================================================
-    // LOGIC
+    // INTERNAL STATE
+    // ========================================================================
+    private float _heartbeatTimer;
+    private float _heartbeatInterval = 1.0f;
+
+    private float _leftTimer;
+    private float _rightTimer;
+    private float _continuousInterval = 0.1f;
+
+    // Cache device references (better performance)
+    private InputDevice _leftDevice;
+    private InputDevice _rightDevice;
+
+    // ========================================================================
+    // INIT
     // ========================================================================
     void Start()
     {
-        if (pathfinder == null) pathfinder = FindAnyObjectByType<PathfindingController>();
-        if (playerHead == null && Camera.main != null) playerHead = Camera.main.transform;
+        if (pathfinder == null)
+            pathfinder = FindAnyObjectByType<PathfindingController>();
+
+        if (playerHead == null && Camera.main != null)
+            playerHead = Camera.main.transform;
+
+        CacheDevices();
     }
 
+    private void CacheDevices()
+    {
+        _leftDevice = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+        _rightDevice = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+    }
+
+    // ========================================================================
+    // LOOP
+    // ========================================================================
     void Update()
     {
-        // 1. Safety Checks
-        if (pathfinder == null || playerHead == null) return;
+        if (pathfinder == null || playerHead == null)
+            return;
 
-        // 2. ALARM SYNC: If the Pathfinding is off (Alarm hasn't started), do nothing.
-        if (pathfinder.IsActive == false) return; 
+        // HARD OFF CONDITIONS
+        if (!pathfinder.IsActive || !pathfinder.areHapticsEnabled())
+        {
+            StopAllHaptics();
+            return;
+        }
 
-        // 3. Calculate Direction
-        Vector3 nextWaypoint = pathfinder.GetNextWaypoint();
-        Vector3 forward = playerHead.forward; forward.y = 0; 
-        Vector3 directionToTarget = (nextWaypoint - playerHead.position).normalized; directionToTarget.y = 0;
+        // COMPUTE DIRECTION
+        Vector3 target = pathfinder.GetNextWaypoint();
+        Vector3 flatForward = playerHead.forward;
+        flatForward.y = 0;
 
-        float signedAngle = Vector3.SignedAngle(forward, directionToTarget, Vector3.up);
+        Vector3 toTarget = target - playerHead.position;
+        toTarget.y = 0;
+
+        float distance = toTarget.magnitude;
+
+        // ZERO-VECTOR GUARD
+        if (distance < 0.2f)
+        {
+            StopAllHaptics();
+            return;
+        }
+
+        Vector3 direction = toTarget.normalized;
+        float signedAngle = Vector3.SignedAngle(flatForward, direction, Vector3.up);
         float absAngle = Mathf.Abs(signedAngle);
 
-        // 4. Decision Loop
+        // STATE MACHINE
         if (absAngle > wrongWayThreshold)
         {
-            // WRONG WAY (Vibrate Both Hands Strong)
-            PlayContinuousHaptic(XRNode.LeftHand, wrongWayIntensity);
-            PlayContinuousHaptic(XRNode.RightHand, wrongWayIntensity);
+            ResetHeartbeat();
+            PlayContinuousBoth(wrongWayIntensity);
         }
         else if (absAngle < deadzone)
         {
-            // FORWARD (Heartbeat Pulse)
+            ResetTurnTimers();
             PlayHeartbeat();
         }
-        else 
+        else
         {
-            // TURN (Vibrate Left or Right Hand)
-            if (signedAngle > 0)
-                PlayContinuousHaptic(XRNode.RightHand, turnIntensity);
-            else
-                PlayContinuousHaptic(XRNode.LeftHand, turnIntensity);
+            ResetHeartbeat();
+            PlayTurnHaptics(signedAngle);
         }
     }
 
     // ========================================================================
-    // HAPTIC PATTERNS
+    // PATTERNS
     // ========================================================================
+
     private void PlayHeartbeat()
     {
         _heartbeatTimer += Time.deltaTime;
-        if (_heartbeatTimer > _heartbeatInterval)
+        if (_heartbeatTimer >= _heartbeatInterval)
         {
-            SendHaptics(XRNode.LeftHand, heartbeatIntensity, 0.05f);
-            SendHaptics(XRNode.RightHand, heartbeatIntensity, 0.05f);
+            SendHaptic(_leftDevice, heartbeatIntensity, 0.06f);
+            SendHaptic(_rightDevice, heartbeatIntensity, 0.06f);
             _heartbeatTimer = 0;
         }
     }
 
-    private void PlayContinuousHaptic(XRNode node, float intensity)
+    private void PlayTurnHaptics(float angle)
     {
-        // We pulse rapidly to simulate a continuous sensation
-        _continuousTimer += Time.deltaTime;
-        if (_continuousTimer > _continuousInterval)
+        if (angle > 0)
+            PlayContinuous(ref _rightTimer, _rightDevice, turnIntensity);
+        else
+            PlayContinuous(ref _leftTimer, _leftDevice, turnIntensity);
+    }
+
+    private void PlayContinuousBoth(float intensity)
+    {
+        PlayContinuous(ref _leftTimer, _leftDevice, intensity);
+        PlayContinuous(ref _rightTimer, _rightDevice, intensity);
+    }
+
+    private void PlayContinuous(ref float timer, InputDevice device, float intensity)
+    {
+        timer += Time.deltaTime;
+        if (timer >= _continuousInterval)
         {
-            SendHaptics(node, intensity, _continuousInterval);
-            _continuousTimer = 0;
+            SendHaptic(device, intensity, _continuousInterval);
+            timer = 0;
         }
+    }
+
+    // ========================================================================
+    // RESET HELPERS
+    // ========================================================================
+
+    private void ResetHeartbeat()
+    {
+        _heartbeatTimer = 0;
+    }
+
+    private void ResetTurnTimers()
+    {
+        _leftTimer = 0;
+        _rightTimer = 0;
     }
 
     // ========================================================================
     // HARDWARE INTERFACE
     // ========================================================================
-    private void SendHaptics(XRNode node, float amplitude, float duration)
+
+    private void SendHaptic(InputDevice device, float amplitude, float duration)
     {
-        InputDevice device = InputDevices.GetDeviceAtXRNode(node);
+        if (!device.isValid)
+            CacheDevices();
+
         if (device.isValid)
-        {
-            // Channel 0 is the main motor
             device.SendHapticImpulse(0, amplitude, duration);
-        }
+    }
+
+    private void StopAllHaptics()
+    {
+        SendHaptic(_leftDevice, 0f, 0f);
+        SendHaptic(_rightDevice, 0f, 0f);
+
+        ResetHeartbeat();
+        ResetTurnTimers();
     }
 }

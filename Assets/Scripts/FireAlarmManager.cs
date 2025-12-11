@@ -11,15 +11,10 @@ public class FireAlarmManager : MonoBehaviour
     public Transform player;               // VR camera / player position
     public float maxAlarmDistance = 10f;   // only alarms within this distance flash
     public float distanceCheckInterval = 0.25f; // how often to check player distance
+    public AudioSource alarmAudio;
 
     [Header("UI")]
-    public Button fireAlarmButton;
     public TMP_Text timerText;
-
-    [Header("Fog Settings")]
-    [Range(0f, 1f)]
-    public float maxFogDensity = 0.05f;
-    public float fogPercentPerSecond = 0.01f;
 
     [Header("Button Colors")]
     public Color greenColor = new Color(0f, 1f, 0f, 1f);
@@ -31,7 +26,7 @@ public class FireAlarmManager : MonoBehaviour
     public AudioSource clickAudioSource;
 
     private List<FireAlarmFlasher> alarms = new List<FireAlarmFlasher>();
-    private bool isActive = false;
+    public bool isActive = false;
     private float timer = 0f;
     private Coroutine timerRoutine;
     private Coroutine fogRoutine;
@@ -43,20 +38,18 @@ public class FireAlarmManager : MonoBehaviour
         alarms.AddRange(parentFolder.GetComponentsInChildren<FireAlarmFlasher>());
 
         // UI initial state
-        UpdateButtonColors(false);
         timerText.text = "Timer: 0:00";
 
         // Initialize fog
         RenderSettings.fog = true;
         RenderSettings.fogDensity = 0f;
+
+        alarmAudio = GetComponent<AudioSource>();
     }
 
     public void ToggleAlarms()
     {
-        if (clickAudioSource != null) clickAudioSource.Play();
-
         isActive = !isActive;
-        UpdateButtonColors(isActive);
 
         if (isActive)
         {
@@ -65,10 +58,10 @@ public class FireAlarmManager : MonoBehaviour
             timerRoutine = StartCoroutine(TimerRoutine());
 
             if (fogRoutine != null) StopCoroutine(fogRoutine);
-            fogRoutine = StartCoroutine(FogRoutine(true));
 
             if (distanceRoutine != null) StopCoroutine(distanceRoutine);
             distanceRoutine = StartCoroutine(DistanceCheckRoutine());
+            ActivateAlarm();
         }
         else
         {
@@ -76,7 +69,6 @@ public class FireAlarmManager : MonoBehaviour
             timerRoutine = null;
 
             if (fogRoutine != null) StopCoroutine(fogRoutine);
-            fogRoutine = StartCoroutine(FogRoutine(false));
 
             if (distanceRoutine != null) StopCoroutine(distanceRoutine);
             distanceRoutine = null;
@@ -84,6 +76,7 @@ public class FireAlarmManager : MonoBehaviour
             // Deactivate all alarms
             foreach (var alarm in alarms)
                 if (alarm != null) alarm.Deactivate();
+            DeactivateAlarm();
         }
     }
 
@@ -99,25 +92,11 @@ public class FireAlarmManager : MonoBehaviour
         }
     }
 
+
+
     public float GetTime()
     {
         return timer;
-    }
-
-    private IEnumerator FogRoutine(bool increasing)
-    {
-        float target = increasing ? maxFogDensity : 0f;
-
-        while (increasing ? RenderSettings.fogDensity < target : RenderSettings.fogDensity > target)
-        {
-            float delta = fogPercentPerSecond * Time.deltaTime;
-            if (increasing)
-                RenderSettings.fogDensity = Mathf.Min(RenderSettings.fogDensity + delta, target);
-            else
-                RenderSettings.fogDensity = Mathf.Max(RenderSettings.fogDensity - delta, target);
-
-            yield return null;
-        }
     }
 
     private IEnumerator DistanceCheckRoutine()
@@ -143,19 +122,15 @@ public class FireAlarmManager : MonoBehaviour
         }
     }
 
-    private void UpdateButtonColors(bool active)
+    public void ActivateAlarm()
     {
-        Color normal = active ? greenColor : redColor;
-        Color highlighted = normal * highlightMultiplier;
-        Color pressed = normal * 0.6f;
+        if (!alarmAudio.isPlaying)
+            alarmAudio.Play();
+    }
 
-        ColorBlock cb = fireAlarmButton.colors;
-        cb.normalColor = normal;
-        cb.highlightedColor = highlighted;
-        cb.pressedColor = pressed;
-        cb.selectedColor = normal;
-        cb.disabledColor = Color.gray;
-        cb.colorMultiplier = 1f;
-        fireAlarmButton.colors = cb;
+    public void DeactivateAlarm()
+    {
+        if (alarmAudio.isPlaying)
+            alarmAudio.Stop();
     }
 }

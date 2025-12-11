@@ -4843,8 +4843,12 @@ PrefabInstance:
     m_TransformParent: {fileID: 8909701748350802067}
     m_Modifications:
     - target: {fileID: 6667402393872249569, guid: 8206b722d11501a449d6a278cca2adfa, type: 3}
+      propertyPath: Priority
+      value: 155
+      objectReference: {fileID: 0}
+    - target: {fileID: 6667402393872249569, guid: 8206b722d11501a449d6a278cca2adfa, type: 3}
       propertyPath: m_Volume
-      value: 0.8
+      value: 0.4
       objectReference: {fileID: 0}
     - target: {fileID: 6667402393872249569, guid: 8206b722d11501a449d6a278cca2adfa, type: 3}
       propertyPath: MaxDistance
